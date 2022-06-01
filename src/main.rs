@@ -1,5 +1,6 @@
 use exif::DateTime;
 use std::env;
+use std::fs;
 use std::path::Path;
 
 fn main() {
@@ -36,18 +37,51 @@ fn main() {
 
 fn rename_and_move(path: &str) {
     let file = std::fs::File::open(&path).unwrap();
+
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = exif::Reader::new();
     let exif = exifreader.read_from_container(&mut bufreader).unwrap();
 
-    let name = Path::new(&path).file_stem().unwrap().to_str().unwrap();
+    let dir = Path::new(&path).parent().unwrap();
+    let name = Path::new(&path).file_stem().unwrap();
+    let ext = Path::new(&path).extension().unwrap().to_ascii_lowercase();
+
     if let Some(field) = exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
         match field.value {
             exif::Value::Ascii(ref vec) if !vec.is_empty() => {
-                if let Ok(dt) = DateTime::from_ascii(&vec[0]) {
-                    let new_name = date_to_name(&dt);
-                    // TODO: extension, folder name, move
-                    println!("{}: {} -> {}", &name, &dt, &new_name);
+                if let Ok(mut dt) = DateTime::from_ascii(&vec[0]) {
+                    let mut new_name = date_to_name(&dt);
+
+                    let mut new_path = std::path::PathBuf::from(dir);
+                    let new_folder_name = format!("{:04}-{:02}-{:02}", dt.year, dt.month, dt.day);
+                    let new_folder = Path::new(&new_folder_name);
+                    new_path.push(&new_folder);
+                    fs::create_dir_all(&new_path).unwrap();
+
+                    new_path.push(&new_name);
+                    new_path.set_extension(&ext);
+
+                    while new_path.exists() {
+                        println!("{} already exists, incrementing by 1", &new_name);
+
+                        dt = DateTime {
+                            year: dt.year,
+                            month: dt.month,
+                            day: dt.day,
+                            hour: dt.hour,
+                            minute: dt.minute,
+                            second: dt.second + 1,
+                            nanosecond: dt.nanosecond,
+                            offset: dt.offset,
+                        };
+                        new_path = [dir, new_folder].iter().collect();
+                        new_name = date_to_name(&dt);
+                        new_path.push(&new_name);
+                        new_path.set_extension(&ext);
+                    }
+                    fs::rename(path, new_path).unwrap();
+
+                    println!("{}: {} -> {}", &name.to_str().unwrap(), &dt, &new_name);
                 }
             }
             _ => {}
@@ -67,7 +101,7 @@ fn u8_to_char(num: u8, uppercase: bool) -> char {
 }
 
 fn char_to_u8(letter: char) -> u8 {
-    return letter as u8 - 64;
+    return letter.to_ascii_uppercase() as u8 - 64;
 }
 
 fn date_to_name(dt: &DateTime) -> String {
