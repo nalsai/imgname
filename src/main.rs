@@ -6,15 +6,15 @@ use std::path::Path;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() > 1 && args[1] == "rename" {
+    if args.len() > 2 && args[1] == "rename" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
             rename_and_move(file);
         }
-    } else if args.len() > 1 && args[1] == "get-date" {
+    } else if args.len() > 2 && args[1] == "get-date" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
             get_date_of_file(file);
         }
-    } else if args.len() > 1 && args[1] == "test" {
+    } else if args.len() > 2 && args[1] == "test" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
             let name = Path::new(&file).file_stem().unwrap().to_str().unwrap();
 
@@ -23,16 +23,23 @@ fn main() {
             let dt2 = name_to_date(&name);
             println!("{} -> {} -> {} -> {}", &name, &dt, &new_name, &dt2);
         }
+    } else if args.len() <= 1 || (args.len() > 1 && args[1] == "help") {
+        print_help();
     } else {
-        println!("Please specify what to do.");
-        println!();
-        println!("Syntax: imgname [OPTION] [FILES...]");
-        println!();
-        println!("Options:");
-        println!(" rename     renames the specified file(s)");
-        println!(" get-date   gets the date from the specified filename(s)");
-        println!(" test       gets the date from the specified filename(s), gets the name for that date and gets the date from that name again");
+        print_help();
+        std::process::exit(126);
     }
+}
+
+fn print_help() {
+    println!("Please specify what to do.");
+    println!();
+    println!("Syntax: imgname [OPTION] [FILES...]");
+    println!();
+    println!("Options:");
+    println!(" rename     renames the specified file(s)");
+    println!(" get-date   gets the date from the specified filename(s)");
+    println!(" test       gets the date from the specified filename(s), gets the name for that date and gets the date from that name again");
 }
 
 fn rename_and_move(path: &str) {
