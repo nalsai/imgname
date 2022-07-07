@@ -53,7 +53,7 @@ fn rename_and_move(path: &str) {
     let exifreader = exif::Reader::new();
 
     match exifreader.read_from_container(&mut bufreader) {
-        Ok(exif) => match exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
+        Ok(exif) => match exif.get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY) {
             Some(field) => match field.value {
                 exif::Value::Ascii(ref vec) if !vec.is_empty() => {
                     if let Ok(mut dt) = DateTime::from_ascii(&vec[0]) {
