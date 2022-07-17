@@ -1,7 +1,9 @@
 use exif::DateTime;
+use filetime::FileTime;
 use std::env;
 use std::fs;
 use std::path::Path;
+use std::time::{Duration, UNIX_EPOCH};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -9,6 +11,11 @@ fn main() {
     if args.len() > 2 && args[1] == "rename" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
             rename_and_move(file);
+        }
+    }
+    if args.len() > 2 && args[1] == "rename-filetime" {
+        for file in args.split_first().unwrap().1.split_first().unwrap().1 {
+            rename_and_move_filetime(file);
         }
     } else if args.len() > 2 && args[1] == "get-date" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
@@ -37,9 +44,10 @@ fn print_help() {
     println!("Syntax: imgname [OPTION] [FILES...]");
     println!();
     println!("Options:");
-    println!(" rename     renames the specified file(s)");
-    println!(" get-date   gets the date from the specified filename(s)");
-    println!(" test       gets the date from the specified filename(s), gets the name for that date and gets the date from that name again");
+    println!(" rename           renames the specified file(s) using exif");
+    println!(" rename-filetime  renames the specified file(s) using filetime");
+    println!(" get-date         gets the date from the specified filename(s)");
+    println!(" test             gets the date from the specified filename(s), gets the name for that date and gets the date from that name again");
 }
 
 fn rename_and_move(path: &str) {
@@ -117,6 +125,59 @@ fn rename_and_move(path: &str) {
         },
         Err(_e) => println!("{} has no exif metadata, skipped", &name_ext_str),
     }
+}
+
+fn rename_and_move_filetime(path: &str) {
+    let dir = Path::new(&path).parent().unwrap();
+    let ext = Path::new(&path).extension().unwrap().to_ascii_lowercase();
+    let name_ext_str = Path::new(&path).file_name().unwrap().to_str().unwrap();
+
+    let metadata = fs::metadata(path).unwrap();
+
+    let mtime = FileTime::from_last_modification_time(&metadata);
+    let datetime = chrono::DateTime::<chrono::Local>::from(
+        UNIX_EPOCH + Duration::from_secs(mtime.unix_seconds() as u64),
+    );
+
+    let timestamp_str = datetime.format("%Y:%m:%d %H:%M:%S").to_string();
+    let mut dt = DateTime::from_ascii(timestamp_str.as_bytes()).unwrap();
+
+    let mut new_name = date_to_name(&dt);
+
+    let mut new_path = std::path::PathBuf::from(dir);
+    let new_folder_name = format!("{:04}-{:02}-{:02}", dt.year, dt.month, dt.day);
+    let new_folder = Path::new(&new_folder_name);
+    new_path.push(&new_folder);
+    fs::create_dir_all(&new_path).unwrap();
+
+    new_path.push(&new_name);
+    new_path.set_extension(&ext);
+
+    while new_path.exists() {
+        println!(
+            "{}.{} already exists, incrementing by 1",
+            &new_name,
+            &ext.to_str().unwrap()
+        );
+
+        dt = DateTime {
+            year: dt.year,
+            month: dt.month,
+            day: dt.day,
+            hour: dt.hour,
+            minute: dt.minute,
+            second: dt.second + 1,
+            nanosecond: dt.nanosecond,
+            offset: dt.offset,
+        };
+        new_path = [dir, new_folder].iter().collect();
+        new_name = date_to_name(&dt);
+        new_path.push(&new_name);
+        new_path.set_extension(&ext);
+    }
+    fs::rename(path, new_path).unwrap();
+
+    println!("{}: {} -> {}", &name_ext_str, &dt, &new_name);
 }
 
 fn get_date_of_file(path: &str) {
