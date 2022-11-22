@@ -12,8 +12,7 @@ fn main() {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
             rename_and_move(file);
         }
-    }
-    if args.len() > 2 && args[1] == "rename-filetime" {
+    } else if args.len() > 2 && args[1] == "rename-filetime" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
             rename_and_move_filetime(file);
         }
