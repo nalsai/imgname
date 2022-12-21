@@ -10,11 +10,34 @@ fn main() {
 
     if args.len() > 2 && args[1] == "rename" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
-            rename_and_move(file);
+            exif = readexif(file);
+            newname = new_name(file, exif);
+            move(file, filepath+newname)    // newname seconds+1 if error
         }
-    } else if args.len() > 2 && args[1] == "rename-filetime" {
+    } else if args.len() > 2 && args[1] == "move" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
-            rename_and_move_filetime(file);
+            exif = read_exif(file);
+            newpath = new_path(file, exif);
+            move(file, newpath+filename)
+        }
+    } else if args.len() > 2 && args[1] == "rename-move" {
+        for file in args.split_first().unwrap().1.split_first().unwrap().1 {
+            exif = readexif(file);
+            newname = new_name(file, exif);
+            newpath = new_path(file, exif);
+            move(file, newpath+newname)    // newname seconds+1 if error
+        }
+    } else if args.len() > 2 && args[1] == "file-rename" {
+        for file in args.split_first().unwrap().1.split_first().unwrap().1 {
+            rename_filetime(file);
+        }
+    } else if args.len() > 2 && args[1] == "file-move" {
+        for file in args.split_first().unwrap().1.split_first().unwrap().1 {
+            rename_filetime(file);
+        }
+    } else if args.len() > 2 && args[1] == "file-rename-move" {
+        for file in args.split_first().unwrap().1.split_first().unwrap().1 {
+            rename_filetime(file);
         }
     } else if args.len() > 2 && args[1] == "get-date" {
         for file in args.split_first().unwrap().1.split_first().unwrap().1 {
@@ -44,9 +67,23 @@ fn print_help() {
     println!();
     println!("Options:");
     println!(" rename           renames the specified file(s) using exif");
-    println!(" rename-filetime  renames the specified file(s) using filetime");
+    println!(" move             moves the specified file(s) into a subfolder using exif");
+    println!(" rename-move      renames and moves the specified file(s) using exif");
+    println!(" file-rename      renames the specified file(s) using filetime");
+    println!(" file-move        moves the specified file(s) using filetime");
+    println!(" file-rename-move renames and moves the specified file(s) using filetime");
     println!(" get-date         gets the date from the specified filename(s)");
-    println!(" test             gets the date from the specified filename(s), gets the name for that date and gets the date from that name again");
+    println!(" get-name         gets the name from the specified date(s)");
+}
+
+fn read_exif(path: &str) -> String {
+    
+}
+fn new_name(path: &str) -> String {
+    
+}
+fn new_path(path: &str) -> String {
+    
 }
 
 fn rename_and_move(path: &str) {
