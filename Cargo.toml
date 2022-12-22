@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 chrono = "0.4"
 filetime = "0.2"
-kamadak-exif = "0.5.4"
+kamadak-exif = "0.5"
+same-file = "1.0"
