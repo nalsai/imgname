@@ -7,8 +7,13 @@ Syntax: imgname [OPTION] [FILES...]
 
 Options:
  rename           renames the specified file(s) using exif
- rename-filetime  renames the specified file(s) using filetime
+ move             moves the specified file(s) into a subfolder using exif
+ rename-move      renames and moves the specified file(s) using exif
+ file-rename      renames the specified file(s) using filetime
+ file-move        moves the specified file(s) using filetime
+ file-rename-move renames and moves the specified file(s) using filetime
  get-date         gets the date from the specified filename(s)
+ get-name         gets the name from the specified date(s)
 ```
 
 ## License
