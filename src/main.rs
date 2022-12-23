@@ -2,7 +2,6 @@ use exif::DateTime;
 use filetime::FileTime;
 use same_file::is_same_file;
 use std::env;
-use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 use std::time::{Duration, UNIX_EPOCH};
@@ -48,52 +47,49 @@ fn print_help() {
     println!(" get-name         gets the name from the specified date(s)");
 }
 
-fn handle_file(file: &str, cmd: &str) -> Result<(), exif::Error> {
-    let ext = Path::new(file)
-        .extension()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
+fn handle_file(path: &str, cmd: &str) -> Result<(), exif::Error> {
+    let ext = get_ext(path).unwrap_or_default();
 
     match cmd {
         "rename" => {
-            let datetime = get_datetime(file)?;
+            let datetime = get_datetime(path)?;
             let newname = date_to_name(&datetime);
-            move_file(file, "", &newname, ext)?;
+            move_file(path, "", &newname, &ext)?;
         }
         "move" => {
-            let datetime = get_datetime(file)?;
-            let filestem = Path::new(file).file_stem().unwrap().to_str().unwrap();
+            let datetime = get_datetime(path)?;
+            let filestem = Path::new(path).file_stem().unwrap().to_str().unwrap();
             let subdir = date_to_directory(&datetime);
-            move_file(file, &subdir, &filestem, ext)?;
+            move_file(path, &subdir, &filestem, &ext)?;
         }
         "rename-move" => {
-            let datetime = get_datetime(file)?;
+            let datetime = get_datetime(path)?;
             let subdir = date_to_directory(&datetime);
             let newname = date_to_name(&datetime);
-            move_file(file, &subdir, &newname, ext)?;
+            move_file(path, &subdir, &newname, &ext)?;
         }
         "file-rename" => {
-            let datetime = get_filedatetime(file)?;
+            let datetime = get_filedatetime(path)?;
             let newname = date_to_name(&datetime);
-            move_file(file, "", &newname, ext)?;
+            move_file(path, "", &newname, &ext)?;
         }
         "file-move" => {
-            let datetime = get_filedatetime(file)?;
-            let filestem = Path::new(file).file_stem().unwrap().to_str().unwrap();
+            let datetime = get_filedatetime(path)?;
+            let filestem = Path::new(path).file_stem().unwrap().to_str().unwrap();
             let subdir = date_to_directory(&datetime);
-            move_file(file, &subdir, &filestem, ext)?;
+            move_file(path, &subdir, &filestem, &ext)?;
         }
         "file-rename-move" => {
-            let datetime = get_filedatetime(file)?;
+            let datetime = get_filedatetime(path)?;
             let subdir = date_to_directory(&datetime);
             let newname = date_to_name(&datetime);
-            move_file(file, &subdir, &newname, ext)?;
+            move_file(path, &subdir, &newname, &ext)?;
         }
         "get-date" => {
-            name_to_date_helper(file);
+            name_to_date_helper(path);
         }
         "test" => {
-            let name = Path::new(&file).file_stem().unwrap().to_str().unwrap();
+            let name = Path::new(&path).file_stem().unwrap().to_str().unwrap();
             let dt = name_to_date(&name);
             let new_name = date_to_name(&dt);
             let dt2 = name_to_date(&new_name);
@@ -106,6 +102,18 @@ fn handle_file(file: &str, cmd: &str) -> Result<(), exif::Error> {
     }
 
     Ok(())
+}
+
+fn get_ext(path: &str) -> Option<String> {
+    let mut ext = Path::new(path)
+        .extension()?
+        .to_str()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if ext == "jpeg" {
+        ext = "jpg".to_string()
+    }
+    return Some(ext);
 }
 
 fn get_datetime(path: &str) -> Result<DateTime, exif::Error> {
@@ -143,7 +151,7 @@ fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {
     return Ok(DateTime::from_ascii(timestamp_str.as_bytes())?);
 }
 
-fn move_file(path: &str, subdir: &str, name: &str, ext: OsString) -> Result<(), exif::Error> {
+fn move_file(path: &str, subdir: &str, name: &str, ext: &str) -> Result<(), exif::Error> {
     let dir = Path::new(&path).parent().unwrap();
 
     let mut new_path = std::path::PathBuf::from(dir);
