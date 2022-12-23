@@ -44,7 +44,7 @@ fn print_help() {
     println!(" file-move        moves the specified file(s) using filetime");
     println!(" file-rename-move renames and moves the specified file(s) using filetime");
     println!(" get-date         gets the date from the specified filename(s)");
-    println!(" get-name         gets the name from the specified date(s)");
+    println!(" get-name         gets the name from the specified date(s) (format: \"2016:05:04 03:02:01\")");
 }
 
 fn handle_file(path: &str, cmd: &str) -> Result<(), exif::Error> {
@@ -87,6 +87,9 @@ fn handle_file(path: &str, cmd: &str) -> Result<(), exif::Error> {
         }
         "get-date" => {
             name_to_date_helper(path);
+        }
+        "get-name" => {
+            date_to_name_helper(path)?;
         }
         "test" => {
             let name = Path::new(&path).file_stem().unwrap().to_str().unwrap();
@@ -192,6 +195,14 @@ fn u8_to_char(num: u8, uppercase: bool) -> char {
 
 fn char_to_u8(letter: char) -> u8 {
     return letter.to_ascii_uppercase() as u8 - 64;
+}
+
+fn date_to_name_helper(date_string: &str) -> Result<(), exif::Error> {
+    let dt_bytes = date_string.as_bytes();
+    let dt = DateTime::from_ascii(dt_bytes)?;
+    let name = date_to_name(&dt);
+    println!("{} -> {}", &dt, &name);
+    Ok(())
 }
 
 fn date_to_name(dt: &DateTime) -> String {

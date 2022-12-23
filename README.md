@@ -13,7 +13,7 @@ Options:
  file-move        moves the specified file(s) using filetime
  file-rename-move renames and moves the specified file(s) using filetime
  get-date         gets the date from the specified filename(s)
- get-name         gets the name from the specified date(s)
+ get-name         gets the name from the specified date(s) (format: "2016:05:04 03:02:01")
 ```
 
 ## License
