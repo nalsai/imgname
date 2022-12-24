@@ -1,86 +1,63 @@
 use exif::DateTime;
 use filetime::FileTime;
 use same_file::is_same_file;
-use std::env;
 use std::fs;
 use std::path::Path;
 use std::time::{Duration, UNIX_EPOCH};
 
+mod cli;
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let mut err = true;
+    let matches = cli::build_cli().get_matches();
 
-    if args.len() > 2 {
-        let cmd = args.get(1).unwrap();
-        for file in args.split_first().unwrap().1.split_first().unwrap().1 {
-            match handle_file(&file, &cmd) {
-                Ok(_) => err = false,
-                Err(e) => println!("{} {:?}", file, e),
-            };
+    let filetime = match matches.get_one::<bool>("filetime") {
+        Some(val) if val == &true => true,
+        _ => false,
+    };
+
+    match matches.subcommand() {
+        Some((command, sub_matches)) => {
+            for path in sub_matches.get_many::<String>("PATH").into_iter().flatten() {
+                match handle_file(command, path, &filetime) {
+                    Ok(_) => (),
+                    Err(e) => println!("{} {:?}", path, e),
+                }
+            }
         }
-    } else {
-        print_help();
-
-        if args.len() == 1 || args.get(1).unwrap() == "help" {
-            err = false
-        }
-    }
-
-    if err {
-        std::process::exit(126);
+        _ => unreachable!(),
     }
 }
 
-fn print_help() {
-    println!("Please specify what to do.");
-    println!();
-    println!("Syntax: imgname [OPTION] [FILES...]");
-    println!();
-    println!("Options:");
-    println!(" rename           renames the specified file(s) using exif");
-    println!(" move             moves the specified file(s) into a subfolder using exif");
-    println!(" rename-move      renames and moves the specified file(s) using exif");
-    println!(" file-rename      renames the specified file(s) using filetime");
-    println!(" file-move        moves the specified file(s) using filetime");
-    println!(" file-rename-move renames and moves the specified file(s) using filetime");
-    println!(" get-date         gets the date from the specified filename(s)");
-    println!(" get-name         gets the name from the specified date(s) (format: \"2016:05:04 03:02:01\")");
-}
-
-fn handle_file(path: &str, cmd: &str) -> Result<(), exif::Error> {
-    let ext = get_ext(path).unwrap_or_default();
-
-    match cmd {
+fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::Error> {
+    match command {
         "rename" => {
-            let datetime = get_datetime(path)?;
+            let ext = get_ext(path).unwrap_or_default();
+            let datetime = match filetime {
+                false => get_datetime(path)?,
+                true => get_filedatetime(path)?,
+            };
+
             let newname = date_to_name(&datetime);
             move_file(path, "", &newname, &ext)?;
         }
         "move" => {
-            let datetime = get_datetime(path)?;
+            let ext = get_ext(path).unwrap_or_default();
+            let datetime = match filetime {
+                false => get_datetime(path)?,
+                true => get_filedatetime(path)?,
+            };
+
             let filestem = Path::new(path).file_stem().unwrap().to_str().unwrap();
             let subdir = date_to_directory(&datetime);
             move_file(path, &subdir, &filestem, &ext)?;
         }
         "rename-move" => {
-            let datetime = get_datetime(path)?;
-            let subdir = date_to_directory(&datetime);
-            let newname = date_to_name(&datetime);
-            move_file(path, &subdir, &newname, &ext)?;
-        }
-        "file-rename" => {
-            let datetime = get_filedatetime(path)?;
-            let newname = date_to_name(&datetime);
-            move_file(path, "", &newname, &ext)?;
-        }
-        "file-move" => {
-            let datetime = get_filedatetime(path)?;
-            let filestem = Path::new(path).file_stem().unwrap().to_str().unwrap();
-            let subdir = date_to_directory(&datetime);
-            move_file(path, &subdir, &filestem, &ext)?;
-        }
-        "file-rename-move" => {
-            let datetime = get_filedatetime(path)?;
+            let ext = get_ext(path).unwrap_or_default();
+            let datetime = match filetime {
+                false => get_datetime(path)?,
+                true => get_filedatetime(path)?,
+            };
+
             let subdir = date_to_directory(&datetime);
             let newname = date_to_name(&datetime);
             move_file(path, &subdir, &newname, &ext)?;
@@ -91,19 +68,8 @@ fn handle_file(path: &str, cmd: &str) -> Result<(), exif::Error> {
         "get-name" => {
             date_to_name_helper(path)?;
         }
-        "test" => {
-            let name = Path::new(&path).file_stem().unwrap().to_str().unwrap();
-            let dt = name_to_date(&name);
-            let new_name = date_to_name(&dt);
-            let dt2 = name_to_date(&new_name);
-            println!("{} -> {} -> {} -> {}", &name, &dt, &new_name, &dt2);
-        }
-        _ => {
-            print_help();
-            std::process::exit(126);
-        }
+        _ => unreachable!(),
     }
-
     Ok(())
 }
 
