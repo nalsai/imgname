@@ -159,8 +159,12 @@ fn u8_to_char(num: u8, uppercase: bool) -> char {
     return (num + if uppercase { 64 } else { 96 }) as char;
 }
 
-fn char_to_u8(letter: char) -> u8 {
-    return letter.to_ascii_uppercase() as u8 - 64;
+fn char_to_u8(letter: char) -> Option<u8> {
+    let c = letter.to_ascii_uppercase() as u8;
+    if c <= 64 {
+        return None;
+    }
+    return Some(c - 64);
 }
 
 fn date_to_name_helper(date_string: &str) -> Result<(), exif::Error> {
@@ -186,39 +190,62 @@ fn date_to_name(dt: &DateTime) -> String {
 }
 
 fn name_to_date_helper(path: &str) {
-    let name = Path::new(&path).file_stem().unwrap().to_str().unwrap();
+    let name = Path::new(&path)
+        .file_stem()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default();
+
     let clean_name = name.replace("VID_", "");
-    let dt = name_to_date(&clean_name);
-    println!("{} -> {}", &name, &dt);
+    if clean_name.len() < 8 {
+        println!("{} is not in the correct format", name);
+        return;
+    }
+    let cleaner_name = &clean_name[..8];
+
+    match name_to_date(&cleaner_name) {
+        Some(dt) => println!("{} -> {}", name, &dt),
+        None => println!("{} is not in the correct format", name),
+    }
 }
 
-fn name_to_date(name: &str) -> DateTime {
+fn name_to_date(name: &str) -> Option<DateTime> {
     let mut chars = name.chars();
 
-    let year = char_to_u8(chars.next().unwrap()) as u16 + 1999;
-    let month = char_to_u8(chars.next().unwrap());
-    let day_char = chars.next().unwrap();
+    let year = char_to_u8(chars.next()?)? as u16 + 1999;
+    let month = char_to_u8(chars.next()?)?;
+    let day_char = chars.next()?;
     let day = if day_char.is_digit(10) {
-        day_char.to_digit(10).unwrap() as u8
+        day_char.to_digit(10)? as u8
     } else {
-        char_to_u8(day_char) + 9
+        char_to_u8(day_char)? + 9
     };
 
     let time_string = chars.collect::<String>();
-    let time_value = time_string.parse::<u32>().unwrap();
 
-    let hour = time_value / 3600;
-    let minute = (time_value - hour * 3600) / 60;
-    let second = time_value - hour * 3600 - minute * 60;
+    match time_string.parse::<u32>() {
+        Ok(time_string) => {
+            let time_value = time_string;
 
-    return DateTime {
-        year: year,
-        month: month,
-        day: day,
-        hour: hour as u8,
-        minute: minute as u8,
-        second: second as u8,
-        nanosecond: Option::default(),
-        offset: Option::default(),
-    };
+            let hour = time_value / 3600;
+            let minute = (time_value - hour * 3600) / 60;
+            let second = time_value - hour * 3600 - minute * 60;
+
+            return Some(DateTime {
+                year: year,
+                month: month,
+                day: day,
+                hour: hour as u8,
+                minute: minute as u8,
+                second: second as u8,
+                nanosecond: Option::default(),
+                offset: Option::default(),
+            });
+        }
+        Err(e) => {
+            print!("{}: ", e)
+        }
+    }
+
+    return None;
 }
