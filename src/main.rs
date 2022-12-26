@@ -184,7 +184,10 @@ fn date_to_name(dt: &DateTime) -> String {
     } else {
         name.push(u8_to_char(dt.day - 9, true));
     }
-    name += &(dt.hour as u32 * 3600 + dt.minute as u32 * 60 + dt.second as u32).to_string();
+    name.push_str(&format!(
+        "{:0>5}",
+        &(dt.hour as u32 * 3600 + dt.minute as u32 * 60 + dt.second as u32).to_string()
+    ));
 
     return name;
 }
