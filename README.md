@@ -2,6 +2,13 @@
 
 A command line app similar to [ImgReName](https://github.com/Nalsai/ImgReName/), but written in Rust 🦀, with the added ability to convert the name back to the date.
 
+It names the files by making a letter out of the year and the month (2000=A ,2001=B, ...) (January=A, February=B, ...).
+If the day of the month is less than or equal to 9, it directly uses the number, otherwise it also turns it into a letter (10=A, 11=B, ...).
+The time value is calculated using `hour * 3600 + minute * 60 + second`.
+
+This results in a name like AA100000 for 2000-01-01 00:00:00 and ZLV86399 for 2025-12-31 23:59:59.
+These values are the minimum and maximum date supported.
+
 ```
 Usage: imgname [OPTIONS] <COMMAND>
 
