@@ -15,10 +15,15 @@ fn main() {
         _ => false,
     };
 
+    let offset = match matches.get_one::<u8>("offset") {
+        Some(val) => val,
+        _ => &(0 as u8),
+    };
+
     match matches.subcommand() {
         Some((command, sub_matches)) => {
             for path in sub_matches.get_many::<String>("PATH").into_iter().flatten() {
-                match handle_file(command, path, &filetime) {
+                match handle_file(command, path, &filetime, &offset) {
                     Ok(_) => (),
                     Err(e) => println!("{} {:?}", path, e),
                 }
@@ -28,13 +33,25 @@ fn main() {
     }
 }
 
-fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::Error> {
+fn handle_file(command: &str, path: &str, filetime: &bool, offset: &u8) -> Result<(), exif::Error> {
     match command {
         "rename" => {
             let ext = get_ext(path).unwrap_or_default();
             let datetime = match filetime {
                 false => get_datetime(path)?,
                 true => get_filedatetime(path)?,
+            };
+
+            // very bad offset calculation (TODO: fix)
+            let datetime = DateTime {
+                year: datetime.year,
+                month: datetime.month,
+                day: datetime.day,
+                hour: datetime.hour + offset,
+                minute: datetime.minute,
+                second: datetime.second,
+                nanosecond: datetime.nanosecond,
+                offset: datetime.offset,
             };
 
             let newname = date_to_name(&datetime);
@@ -47,6 +64,18 @@ fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::E
                 true => get_filedatetime(path)?,
             };
 
+            // very bad offset calculation (TODO: fix)
+            let datetime = DateTime {
+                year: datetime.year,
+                month: datetime.month,
+                day: datetime.day,
+                hour: datetime.hour + offset,
+                minute: datetime.minute,
+                second: datetime.second,
+                nanosecond: datetime.nanosecond,
+                offset: datetime.offset,
+            };
+
             let filestem = Path::new(path).file_stem().unwrap().to_str().unwrap();
             let subdir = date_to_directory(&datetime);
             move_file(path, &subdir, &filestem, &ext)?;
@@ -56,6 +85,18 @@ fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::E
             let datetime = match filetime {
                 false => get_datetime(path)?,
                 true => get_filedatetime(path)?,
+            };
+
+            // very bad offset calculation (TODO: fix)
+            let datetime = DateTime {
+                year: datetime.year,
+                month: datetime.month,
+                day: datetime.day,
+                hour: datetime.hour + offset,
+                minute: datetime.minute,
+                second: datetime.second,
+                nanosecond: datetime.nanosecond,
+                offset: datetime.offset,
             };
 
             let subdir = date_to_directory(&datetime);

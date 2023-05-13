@@ -35,5 +35,9 @@ pub fn build_cli() -> Command {
                 .arg(arg!(<PATH> ... "Files to rename and move").value_parser(clap::value_parser!(String))),
         ).arg(
             clap::arg!(-f --"filetime" "Use last modification time of file instead of exif metadata")
-                .value_parser(clap::value_parser!(bool)),)
+                .value_parser(clap::value_parser!(bool)),
+        ).arg(
+            clap::arg!(-o --"offset" <OFFSET> "Offset the time used for renaming and moving by the specified amount of hours (only positive values are supported)")
+                .value_parser(clap::value_parser!(u8)),
+        )
 }
