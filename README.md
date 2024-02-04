@@ -40,6 +40,13 @@ sudo install -m644 ./target/release/build/imgname-HASH/out/imgname.fish /usr/sha
 sudo install -m644 ./target/release/build/imgname-HASH/out/_imgname /usr/share/zsh/site-functions/_imgname              # Zsh
 ```
 
+## TODO
+
+- Add/improve error handling
+- Check for extensions with multiple dots (e.g. `.out.pp3`)
+- Write tests
+- Rename by incrementing the seconds for the name if the file already exists instead of adding a number at the end
+
 ## License
 
 Imgname is distributed under the terms of both the MIT License and the Apache License (Version 2.0).
