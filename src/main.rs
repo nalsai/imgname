@@ -106,42 +106,32 @@ fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {
 }
 
 /* Compare if a file path1.a is equal to path2.a and path1.b to path2.b */
-fn files_with_same_extension_at_different_paths_exist_and_are_equal(path1: &Path, path2: &Path) -> bool {
+fn files_with_same_extension_are_equal(path1: &Path, path2: &Path) -> bool {
+
+    if !(path1.exists() && path2.exists()) {
+        return false;
+    }
+
     let path1_ext = path1.extension().unwrap().to_str().unwrap();
     let path2_ext = path2.extension().unwrap().to_str().unwrap();
-
-    if exists_and_is_same_file(&path1, &path2.with_extension(&path1_ext)) {
-        
-        if exists_and_is_same_file(&path2, &path1.with_extension(&path2_ext)) {
-            return true;
-        }
-
-    }
-
-    false
-}
-
-fn exists_and_is_same_file(path1: &Path, path2: &Path) -> bool {
-    if path1.exists() && path2.exists() {
-        return is_same_file(path1, path2).unwrap();
-    }
-    return false;
-}
-
-
-fn move_file(src_path: &str, dest_subdir: &str, original_dest_name_stem: &str) -> Result<(), exif::Error> {
-    // TODO: handle errors
-    let src_filepath = Path::new(&src_path);
-    //let src_dir = src_filepath.parent().unwrap();
-    let src_parent = src_filepath.parent().unwrap();
-    let src_dir = if src_parent.as_os_str().is_empty() { Path::new(".") } else { src_parent };
     
+    return is_same_file(&path1, &path2.with_extension(&path1_ext)).unwrap()
+        && is_same_file(&path2, &path1.with_extension(&path2_ext)).unwrap()
+}
+
+fn move_file(src_path: &str, dest_subdir: &str, dest_name: &str) -> Result<(), exif::Error> {
+    println!("Hi00");
+    let src_filepath = Path::new(&src_path);
+    let src_parent = src_filepath.parent().unwrap();    // can be empty
+    let src_dir = if src_parent.as_os_str().is_empty() { Path::new(".") } else { src_parent }; // if src_parent is empty, the current directory is used
     let src_name_stem = src_filepath.file_stem().unwrap();
     
     let dest_dir = &src_dir.join(&dest_subdir);
-    let mut dest_name_stem: String = original_dest_name_stem.to_string();
+    let mut dest_name_stem: String = dest_name.to_string(); // will be modified to be unique
 
-    // make sure the dest_name_stem is unique
+    println!("Hi0");
+    // make sure the dest_name_stem is unique in both src_dir and dest_dir
+    // TODO: prettify
     let mut counter = 1;
     for entry in fs::read_dir(src_dir)? {
         match entry {
@@ -149,9 +139,9 @@ fn move_file(src_path: &str, dest_subdir: &str, original_dest_name_stem: &str) -
                 let entry_path = entry.path();
                 if entry_path.file_stem().unwrap().to_str().unwrap() == dest_name_stem {
     
-                    if !files_with_same_extension_at_different_paths_exist_and_are_equal(&src_filepath, &entry_path) {
+                    if !files_with_same_extension_are_equal(&src_filepath, &entry_path) {
                         println!("{} already exists", entry_path.to_str().unwrap_or_default());
-                        dest_name_stem = format!("{}-{}", original_dest_name_stem, counter);
+                        dest_name_stem = format!("{}-{}", dest_name, counter);
                         counter += 1;
                     }
                 }
@@ -162,21 +152,41 @@ fn move_file(src_path: &str, dest_subdir: &str, original_dest_name_stem: &str) -
             },
         }
     }
+    if !dest_subdir.is_empty() && dest_dir.exists() { // !dest_subdir.is_empty() means that dest_dir != src_dir
+        for entry in fs::read_dir(dest_dir)? {
+            match entry {
+                Ok(entry) => {
+                    let entry_path = entry.path();
+                    if entry_path.file_stem().unwrap().to_str().unwrap() == dest_name_stem {
+        
+                        if !files_with_same_extension_are_equal(&src_filepath, &entry_path) {
+                            println!("{} already exists", entry_path.to_str().unwrap_or_default());
+                            dest_name_stem = format!("{}-{}", dest_name, counter);
+                            counter += 1;
+                        }
+                    }
+                },
+                Err(_) => {
+                    println!("Error reading entry");
+                    continue
+                },
+            }
+        }
+    }
 
     // find and move all files with src_name_stem in src_dir to dest_dir with dest_name_stem
     for entry in fs::read_dir(src_dir)? {
         match entry {
             Ok(entry) => {
 
-                // If the file name matches src_name, move it to dest_dir with dest_name
+                // if the file name matches src_name, move it to dest_dir with dest_name
                 let entry_path = entry.path();
                 if entry_path.file_stem().unwrap() == src_name_stem {
                     let dest_ext = entry_path.extension().unwrap().to_str().unwrap().to_ascii_lowercase();
-
                     let dest_path = dest_dir.join(&dest_name_stem).with_extension(&dest_ext);
 
                     println!("{} -> {}", entry_path.to_str().unwrap_or_default(), dest_path.to_str().unwrap_or_default());
-                    
+                    fs::create_dir_all(&dest_dir).unwrap_or_default();
                     fs::rename(entry.path(), dest_path)?;
                 }
             },
@@ -186,47 +196,7 @@ fn move_file(src_path: &str, dest_subdir: &str, original_dest_name_stem: &str) -
             },
         }
     }
-    
 
-
-    // TODO: handle filename collisions
-
-        /*
-    
-    let mut new_path = std::path::PathBuf::from(src_dir);
-    new_path.push(&dest_subdir);
-    fs::create_dir_all(&new_path).unwrap_or_default();
-    new_path.push(&dest_name);
-    new_path.set_extension(&src_ext);
-
-    let mut num = 1;
-    while new_path.exists() && !is_same_file(&src_path, &new_path).unwrap() {
-        println!("{} already exists", new_path.to_str().unwrap_or_default());
-
-        let filename = dest_name.to_string() + "-" + &num.to_string();
-        num += 1;
-
-        new_path = std::path::PathBuf::from(src_dir);
-        new_path.push(&dest_subdir);
-        fs::create_dir_all(&new_path)?;
-        new_path.push(&filename);
-        new_path.set_extension(&src_ext);
-    }
-
-    println!("{} -> {}", path, new_path.to_str().unwrap_or_default());
-
-    fs::rename(src_path, new_path)?;
-
-
-    //move every file in src_dir with dest_name to src_path 
-
-    //println!("{}, {:?}, {}, {}, {}", path, dir, subdir, name, ext);
-
-    //for file in files {
-        
-    //}
-    
-     */
     Ok(())
 }
 
