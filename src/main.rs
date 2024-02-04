@@ -112,15 +112,23 @@ fn files_with_same_extension_are_equal(path1: &Path, path2: &Path) -> bool {
         return false;
     }
 
+    println!("{} {}", path1.to_str().unwrap(), path2.to_str().unwrap());
+
     let path1_ext = path1.extension().unwrap().to_str().unwrap();
     let path2_ext = path2.extension().unwrap().to_str().unwrap();
+
+    let path1_with_ext2 = path1.with_extension(&path2_ext);
+    let path2_with_ext1 = path2.with_extension(&path1_ext);
     
-    return is_same_file(&path1, &path2.with_extension(&path1_ext)).unwrap()
-        && is_same_file(&path2, &path1.with_extension(&path2_ext)).unwrap()
+    if !(path1_with_ext2.exists() && path2_with_ext1.exists()) {
+        return false;
+    }
+
+    return is_same_file(&path1, &path2_with_ext1).unwrap()
+        && is_same_file(&path2, path1_with_ext2).unwrap()
 }
 
 fn move_file(src_path: &str, dest_subdir: &str, dest_name: &str) -> Result<(), exif::Error> {
-    println!("Hi00");
     let src_filepath = Path::new(&src_path);
     let src_parent = src_filepath.parent().unwrap();    // can be empty
     let src_dir = if src_parent.as_os_str().is_empty() { Path::new(".") } else { src_parent }; // if src_parent is empty, the current directory is used
@@ -129,7 +137,6 @@ fn move_file(src_path: &str, dest_subdir: &str, dest_name: &str) -> Result<(), e
     let dest_dir = &src_dir.join(&dest_subdir);
     let mut dest_name_stem: String = dest_name.to_string(); // will be modified to be unique
 
-    println!("Hi0");
     // make sure the dest_name_stem is unique in both src_dir and dest_dir
     // TODO: prettify
     let mut counter = 1;
