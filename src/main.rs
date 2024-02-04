@@ -112,8 +112,6 @@ fn files_with_same_extension_are_equal(path1: &Path, path2: &Path) -> bool {
         return false;
     }
 
-    println!("{} {}", path1.to_str().unwrap(), path2.to_str().unwrap());
-
     let path1_ext = path1.extension().unwrap().to_str().unwrap();
     let path2_ext = path2.extension().unwrap().to_str().unwrap();
 
