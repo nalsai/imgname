@@ -9,6 +9,8 @@ The time value is calculated using `hour * 3600 + minute * 60 + second`.
 This results in a name like AA100000 for 2000-01-01 00:00:00 and ZLV86399 for 2025-12-31 23:59:59.
 These values are the minimum and maximum date supported.
 
+It also recognizes files with the same name and a different extension as the same file, and it will move/rename them too. This is useful when you have a RAW file and a JPEG file with the same name, as only TIFF based RAW images (like Sony ARW) are supported directly.
+
 ```
 Usage: imgname [OPTIONS] <COMMAND>
 
