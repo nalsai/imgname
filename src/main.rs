@@ -31,17 +31,15 @@ fn main() {
 fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::Error> {
     match command {
         "rename" => {
-            let ext = get_ext(path).unwrap_or_default();
             let datetime = match filetime {
                 false => get_datetime(path)?,
                 true => get_filedatetime(path)?,
             };
 
             let newname = date_to_name(&datetime);
-            move_file(path, "", &newname, &ext)?;
+            move_file(path, "", &newname)?;
         }
         "move" => {
-            let ext = get_ext(path).unwrap_or_default();
             let datetime = match filetime {
                 false => get_datetime(path)?,
                 true => get_filedatetime(path)?,
@@ -49,10 +47,9 @@ fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::E
 
             let filestem = Path::new(path).file_stem().unwrap().to_str().unwrap();
             let subdir = date_to_directory(&datetime);
-            move_file(path, &subdir, &filestem, &ext)?;
+            move_file(path, &subdir, &filestem)?;
         }
         "rename-move" => {
-            let ext = get_ext(path).unwrap_or_default();
             let datetime = match filetime {
                 false => get_datetime(path)?,
                 true => get_filedatetime(path)?,
@@ -60,7 +57,7 @@ fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::E
 
             let subdir = date_to_directory(&datetime);
             let newname = date_to_name(&datetime);
-            move_file(path, &subdir, &newname, &ext)?;
+            move_file(path, &subdir, &newname)?;
         }
         "get-date" => {
             name_to_date_helper(path);
@@ -71,18 +68,6 @@ fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::E
         _ => unreachable!(),
     }
     Ok(())
-}
-
-fn get_ext(path: &str) -> Option<String> {
-    let mut ext = Path::new(path)
-        .extension()?
-        .to_str()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    if ext == "jpeg" {
-        ext = "jpg".to_string()
-    }
-    return Some(ext);
 }
 
 fn get_datetime(path: &str) -> Result<DateTime, exif::Error> {
@@ -120,31 +105,103 @@ fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {
     return Ok(DateTime::from_ascii(timestamp_str.as_bytes())?);
 }
 
-fn move_file(path: &str, subdir: &str, name: &str, ext: &str) -> Result<(), exif::Error> {
-    let dir = Path::new(&path).parent().unwrap();
+/* Compare if a file path1.a is equal to path2.a and path1.b to path2.b */
+fn files_with_same_extension_are_equal(path1: &Path, path2: &Path) -> bool {
 
-    let mut new_path = std::path::PathBuf::from(dir);
-    new_path.push(&subdir);
-    fs::create_dir_all(&new_path).unwrap_or_default();
-    new_path.push(&name);
-    new_path.set_extension(&ext);
-
-    let mut num = 1;
-    while new_path.exists() && !is_same_file(&path, &new_path).unwrap() {
-        println!("{} already exists", new_path.to_str().unwrap_or_default());
-
-        let filename = name.to_string() + "-" + &num.to_string();
-        num += 1;
-
-        new_path = std::path::PathBuf::from(dir);
-        new_path.push(&subdir);
-        fs::create_dir_all(&new_path)?;
-        new_path.push(&filename);
-        new_path.set_extension(&ext);
+    if !(path1.exists() && path2.exists()) {
+        return false;
     }
 
-    println!("{} -> {}", path, new_path.to_str().unwrap_or_default());
-    fs::rename(path, new_path)?;
+    let path1_ext = path1.extension().unwrap().to_str().unwrap();
+    let path2_ext = path2.extension().unwrap().to_str().unwrap();
+
+    let path1_with_ext2 = path1.with_extension(&path2_ext);
+    let path2_with_ext1 = path2.with_extension(&path1_ext);
+    
+    if !(path1_with_ext2.exists() && path2_with_ext1.exists()) {
+        return false;
+    }
+
+    return is_same_file(&path1, &path2_with_ext1).unwrap()
+        && is_same_file(&path2, path1_with_ext2).unwrap()
+}
+
+fn move_file(src_path: &str, dest_subdir: &str, dest_name: &str) -> Result<(), exif::Error> {
+    let src_filepath = Path::new(&src_path);
+    let src_parent = src_filepath.parent().unwrap();    // can be empty
+    let src_dir = if src_parent.as_os_str().is_empty() { Path::new(".") } else { src_parent }; // if src_parent is empty, the current directory is used
+    let src_name_stem = src_filepath.file_stem().unwrap();
+    
+    let dest_dir = &src_dir.join(&dest_subdir);
+    let mut dest_name_stem: String = dest_name.to_string(); // will be modified to be unique
+
+    // make sure the dest_name_stem is unique in both src_dir and dest_dir
+    // TODO: prettify
+    let mut counter = 1;
+    for entry in fs::read_dir(src_dir)? {
+        match entry {
+            Ok(entry) => {
+                let entry_path = entry.path();
+                if entry_path.file_stem().unwrap().to_str().unwrap() == dest_name_stem {
+    
+                    if !files_with_same_extension_are_equal(&src_filepath, &entry_path) {
+                        println!("{} already exists", entry_path.to_str().unwrap_or_default());
+                        dest_name_stem = format!("{}-{}", dest_name, counter);
+                        counter += 1;
+                    }
+                }
+            },
+            Err(_) => {
+                println!("Error reading entry");
+                continue
+            },
+        }
+    }
+    if !dest_subdir.is_empty() && dest_dir.exists() { // !dest_subdir.is_empty() means that dest_dir != src_dir
+        for entry in fs::read_dir(dest_dir)? {
+            match entry {
+                Ok(entry) => {
+                    let entry_path = entry.path();
+                    if entry_path.file_stem().unwrap().to_str().unwrap() == dest_name_stem {
+        
+                        if !files_with_same_extension_are_equal(&src_filepath, &entry_path) {
+                            println!("{} already exists", entry_path.to_str().unwrap_or_default());
+                            dest_name_stem = format!("{}-{}", dest_name, counter);
+                            counter += 1;
+                        }
+                    }
+                },
+                Err(_) => {
+                    println!("Error reading entry");
+                    continue
+                },
+            }
+        }
+    }
+
+    // find and move all files with src_name_stem in src_dir to dest_dir with dest_name_stem
+    for entry in fs::read_dir(src_dir)? {
+        match entry {
+            Ok(entry) => {
+
+                // if the file name matches src_name, move it to dest_dir with dest_name
+                let entry_path = entry.path();
+                if entry_path.file_stem().unwrap() == src_name_stem {
+                    let dest_ext = entry_path.extension().unwrap().to_str().unwrap().to_ascii_lowercase();
+                    let dest_path = dest_dir.join(&dest_name_stem).with_extension(&dest_ext);
+
+                    println!("{} -> {}", entry_path.to_str().unwrap_or_default(), dest_path.to_str().unwrap_or_default());
+                    fs::create_dir_all(&dest_dir).unwrap_or_default();
+                    fs::rename(entry.path(), dest_path)?;
+                }
+            },
+            Err(_) => {
+                println!("Error reading entry");
+                continue
+            },
+        }
+    }
+
     Ok(())
 }
 
