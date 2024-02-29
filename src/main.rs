@@ -84,109 +84,131 @@ fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {
     return Ok(DateTime::from_ascii(timestamp_str.as_bytes())?);
 }
 
-/* Compare if a file path1.a is equal to path2.a and path1.b to path2.b */
-fn files_with_same_extension_are_equal(path1: &Path, path2: &Path) -> bool {
+fn move_file(method: &str, src_path_str: &str, mut datetime: DateTime) -> Result<(), exif::Error> {
+    let src_path = Path::new(&src_path_str);
+    let src_dir = if src_path.parent().unwrap().as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        src_path.parent().unwrap()
+    };
+    let src_name_stem = src_path.file_stem().unwrap();
 
-    if !(path1.exists() && path2.exists()) {
-        return false;
-    }
-
-    let path1_ext = path1.extension().unwrap().to_str().unwrap();
-    let path2_ext = path2.extension().unwrap().to_str().unwrap();
-
-    let path1_with_ext2 = path1.with_extension(&path2_ext);
-    let path2_with_ext1 = path2.with_extension(&path1_ext);
-    
-    if !(path1_with_ext2.exists() && path2_with_ext1.exists()) {
-        return false;
-    }
-
-    return is_same_file(&path1, &path2_with_ext1).unwrap()
-        && is_same_file(&path2, path1_with_ext2).unwrap()
-}
-
-fn move_file(method: &str, src_path: &str, mut datetime: DateTime) -> Result<(), exif::Error> {
-    let src_filepath = Path::new(&src_path);
-    let src_parent = src_filepath.parent().unwrap();    // can be empty
-    let src_dir = if src_parent.as_os_str().is_empty() { Path::new(".") } else { src_parent }; // if src_parent is empty, the current directory is used
-    let src_name_stem = src_filepath.file_stem().unwrap();
-
-    let dest_subdir = if method == "move" || method == "rename-move" { date_to_directory(&datetime) } else { String::default() };
-    let dest_name = if method == "rename" || method == "rename-move" { date_to_name(&datetime) } else { Path::new(src_path).file_stem().unwrap().to_string_lossy().to_string() };
+    let dest_subdir = if method == "move" || method == "rename-move" {
+        date_to_directory(&datetime)
+    } else {
+        String::default()
+    };
+    let dest_name = if method == "rename" || method == "rename-move" {
+        date_to_name(&datetime)
+    } else {
+        Path::new(src_path_str)
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+    };
     let dest_dir = &src_dir.join(&dest_subdir);
 
-    let mut dest_name_unique: String;
-
-    // make dest_name_stem unique in both src_dir and dest_dir    
-    let mut counter: u8 = 1;
-    (dest_name_unique, counter, datetime) = make_unique_filename(src_dir, &dest_name, dest_name.clone(), datetime, src_filepath, counter, method);
-    println!("->{}", dest_name_unique);
-
-    if !dest_subdir.is_empty() && dest_dir.exists() { // !dest_subdir.is_empty() means that dest_dir != src_dir
-        (dest_name_unique, _, _) = make_unique_filename(dest_dir, &dest_name, dest_name_unique, datetime, src_filepath, counter, method);
-    }
-    println!("->{}", dest_name_unique);
-
-    // find and move all files with src_name_stem in src_dir to dest_dir with dest_name_unique
-    for entry in fs::read_dir(src_dir)? {
-        match entry {
-            Ok(entry) => {
-
-                // if the file name matches src_name, move it to dest_dir with dest_name
-                let entry_path = entry.path();
-                if entry_path.file_stem().unwrap() == src_name_stem {
-                    let dest_ext = entry_path.extension().unwrap().to_str().unwrap().to_ascii_lowercase();
-                    let dest_path = dest_dir.join(&dest_name_unique).with_extension(&dest_ext);
-
-                    println!("{} -> {}", entry_path.to_str().unwrap_or_default(), dest_path.to_str().unwrap_or_default());
-                    fs::create_dir_all(&dest_dir).unwrap_or_default();
-
-                    // make absolutely sure no file will be overwritten
-                    if dest_path.exists() && !is_same_file(entry.path(), &dest_path).unwrap(){
-                        panic!("Error: trying to move {} to {} but a file already exists at the target", entry.path().to_str().unwrap_or_default(), dest_path.to_str().unwrap_or_default());
-                    }
-                    fs::rename(entry.path(), dest_path)?;
-                }
-            },
-            Err(_) => {
-                println!("Error reading entry");
-                continue
-            },
+    // increment name until it is unique in both src_dir and dest_dir
+    let mut dest_name_unique = dest_name.clone();
+    let mut counter = 1;
+    while another_file_with_stem_exists(&src_dir, &dest_name_unique, src_path)
+        || (!dest_subdir.is_empty()
+            && another_file_with_stem_exists(&dest_dir, &dest_name_unique, src_path))
+    {
+        println!("{} already exists", dest_name_unique);
+        if method == "rename" || method == "rename-move" {
+            datetime.second += 1;
+            dest_name_unique = date_to_name(&datetime);
+        } else {
+            dest_name_unique = format!("{}-{}", dest_name, counter);
+            counter += 1;
         }
+    }
+
+    // find all files with src_name_stem in src_dir
+    let iter = fs::read_dir(src_dir)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().unwrap().is_file())
+        .filter(|e| {
+            e.file_name()
+                .to_str()
+                .unwrap()
+                .starts_with(src_name_stem.to_str().unwrap())
+        });
+
+    fs::create_dir(&dest_dir).unwrap_or_default();
+
+    // move files to dest_dir
+    for entry in iter {
+        let dest_ext = entry
+            .path()
+            .extension()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_ascii_lowercase(); // TODO: jpeg -> jpg
+        let dest_path = dest_dir.join(&dest_name_unique).with_extension(&dest_ext);
+
+        println!(
+            "{} -> {}",
+            entry.path().to_str().unwrap_or_default(),
+            dest_path.to_str().unwrap_or_default()
+        );
+
+        // make absolutely sure no file will be overwritten - this should never happen
+        if dest_path.exists() && !is_same_file(entry.path(), &dest_path).unwrap() {
+            panic!(
+                "Error: trying to move {} to {} but a file already exists at the target",
+                entry.path().to_str().unwrap_or_default(),
+                dest_path.to_str().unwrap_or_default()
+            );
+        }
+        fs::rename(entry.path(), dest_path)?;
     }
 
     Ok(())
 }
 
-fn make_unique_filename(path: &Path, dest_name: &str, mut dest_name_unique: String, mut datetime: DateTime, src_filepath: &Path, counter: u8, method: &str) -> (String, u8, DateTime) {
-    let mut counter = counter;
-    // TODO: make the name check work even if the files are out of order (important)
-    for entry in fs::read_dir(path).unwrap() { // TODO: handle error
-        match entry {
-            Ok(entry) => {
-                let entry_path = entry.path();
+fn another_file_with_stem_exists(path: &Path, file_stem: &str, src_path: &Path) -> bool {
+    if !path.exists() {
+        return false;
+    }
+    // find all files with the same name (stem) in the directory
+    let iter = fs::read_dir(path)
+        .expect("Failed to read directory")
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().expect("Failed to get file type").is_file())
+        .filter(|e| e.file_name().to_str().unwrap().starts_with(file_stem));
 
-                if entry_path.file_stem().unwrap().to_str().unwrap() == dest_name_unique {
-                    if !files_with_same_extension_are_equal(&src_filepath, &entry_path) {
-                        println!("{} already exists", entry_path.to_str().unwrap_or_default());
-                        if method == "rename" || method == "rename-move"{
-                            datetime.second += 1;
-                            dest_name_unique = date_to_name(&datetime);
-                        } else {
-                            dest_name_unique = format!("{}-{}", dest_name, counter);
-                            counter += 1;
-                        }
-                    }
-                }
-            },
-            Err(_) => {
-                println!("Error reading entry");
-                continue
-            },
+    // compare the file with the same name and extension
+    for entry in iter {
+        if !files_with_same_extension_are_equal(src_path, &entry.path()) {
+            return true;
         }
     }
 
-    (dest_name_unique, counter, datetime)
+    false
+}
+
+/* Compare if a file path1.a is equal to path2.a and path1.b to path2.b */
+fn files_with_same_extension_are_equal(path1: &Path, path2: &Path) -> bool {
+    if !path1.exists() || !path2.exists() {
+        return false;
+    }
+
+    let ext1 = path1.extension().unwrap().to_str().unwrap();
+    let ext2 = path2.extension().unwrap().to_str().unwrap();
+
+    let path1_with_ext2 = path1.with_extension(&ext2);
+    let path2_with_ext1 = path2.with_extension(&ext1);
+
+    if !path1_with_ext2.exists() || !path2_with_ext1.exists() {
+        return false;
+    }
+
+    is_same_file(&path1, &path2_with_ext1).unwrap()
+        && is_same_file(&path2, path1_with_ext2).unwrap()
 }
 
 fn date_to_directory(datetime: &DateTime) -> String {
