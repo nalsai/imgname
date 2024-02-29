@@ -7,11 +7,11 @@ build = "build.rs"
 
 [dependencies]
 chrono = "0.4"
-clap = "4.0"
+clap = "4.5"
 filetime = "0.2"
 kamadak-exif = "0.5"
 same-file = "1.0"
 
 [build-dependencies]
-clap = "4.0"
-clap_complete = "4.0"
+clap = "4.5"
+clap_complete = "4.5"
