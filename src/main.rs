@@ -1,24 +1,39 @@
 use exif::DateTime;
 use filetime::FileTime;
 use same_file::is_same_file;
-use std::fs;
 use std::path::Path;
 use std::time::{Duration, UNIX_EPOCH};
+use std::{fs, io};
 
 mod cli;
+
+enum GetDateMethod {
+    Exif,
+    Filetime,
+    Filename,
+}
 
 fn main() {
     let matches = cli::build_cli().get_matches();
 
-    let filetime = match matches.get_one::<bool>("filetime") {
+    let mut get_date_method = GetDateMethod::Exif;
+
+    if match matches.get_one::<bool>("filetime") {
         Some(val) if val == &true => true,
         _ => false,
-    };
+    } {
+        get_date_method = GetDateMethod::Filetime;
+    } else if match matches.get_one::<bool>("pxl") {
+        Some(val) if val == &true => true,
+        _ => false,
+    } {
+        get_date_method = GetDateMethod::Filename;
+    }
 
     match matches.subcommand() {
         Some((command, sub_matches)) => {
             for path in sub_matches.get_many::<String>("PATH").into_iter().flatten() {
-                match handle_file(command, path, &filetime) {
+                match handle_file(command, path, &get_date_method) {
                     Ok(_) => (),
                     Err(e) => println!("{} {:?}", path, e),
                 }
@@ -28,12 +43,17 @@ fn main() {
     }
 }
 
-fn handle_file(command: &str, path: &str, filetime: &bool) -> Result<(), exif::Error> {
+fn handle_file(
+    command: &str,
+    path: &str,
+    get_date_method: &GetDateMethod,
+) -> Result<(), exif::Error> {
     match command {
         "rename" | "move" | "rename-move" => {
-            let datetime = match filetime {
-                false => get_datetime(path)?,
-                true => get_filedatetime(path)?,
+            let datetime = match get_date_method {
+                GetDateMethod::Exif => get_datetime(path)?,
+                GetDateMethod::Filetime => get_filedatetime(path)?,
+                GetDateMethod::Filename => get_filename_datetime(path)?,
             };
 
             move_file(command, path, datetime)?;
@@ -82,6 +102,42 @@ fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {
 
     let timestamp_str = datetime.format("%Y:%m:%d %H:%M:%S").to_string();
     return Ok(DateTime::from_ascii(timestamp_str.as_bytes())?);
+}
+
+fn get_filename_datetime(path: &str) -> Result<DateTime, exif::Error> {
+    let filename = Path::new(path).file_name().unwrap().to_str().unwrap();
+    let datetime = name_date_parser_helper(filename).unwrap();
+
+    return Ok(datetime);
+}
+
+fn name_date_parser_helper(name: &str) -> Result<DateTime, io::Error> {
+    // name is in the format PXL_20240611_063230527.mp4
+    // get the date from the name
+    let year = &name[4..8];
+    let month = &name[8..10];
+    let day = &name[10..12];
+
+    let hour = &name[13..15];
+    let minute = &name[15..17];
+    let second = &name[17..19];
+
+    let datetime = format!("{}:{}:{} {}:{}:{}", year, month, day, hour, minute, second);
+
+    //println!("{} -> {}", name, datetime);
+
+    let mut datetime = DateTime::from_ascii(datetime.as_bytes()).unwrap();
+
+    // change the date from utc to local time
+    let tz_offset = 9; // TODO: allow user to set timezone
+
+    datetime.hour += tz_offset;
+    if datetime.hour >= 24 {
+        datetime.hour -= 24;
+        datetime.day += 1;
+    }
+
+    return Ok(datetime);
 }
 
 fn move_file(method: &str, src_path_str: &str, mut datetime: DateTime) -> Result<(), exif::Error> {

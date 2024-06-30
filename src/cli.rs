@@ -36,4 +36,8 @@ pub fn build_cli() -> Command {
         ).arg(
             clap::arg!(-f --"filetime" "Use last modification time of file instead of exif metadata")
                 .value_parser(clap::value_parser!(bool)),)
+        .arg(
+            clap::arg!(-p --"pxl" "Use the filename (in the format PXL_20200820_141005222) instead of exif metadata")
+                .value_parser(clap::value_parser!(bool)),
+            )
 }
