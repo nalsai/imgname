@@ -16,24 +16,15 @@ enum GetDateMethod {
 fn main() {
     let matches = cli::build_cli().get_matches();
 
-    let tz_offset = match matches.get_one::<i8>("offset") {
-        Some(val) => val,
-        _ => &0,
+    let get_date_method = if *matches.get_one::<bool>("filetime").unwrap_or(&false) {
+        GetDateMethod::Filetime
+    } else if *matches.get_one::<bool>("pxl").unwrap_or(&false) {
+        GetDateMethod::Filename
+    } else {
+        GetDateMethod::Exif
     };
 
-    let mut get_date_method = GetDateMethod::Exif;
-
-    if match matches.get_one::<bool>("filetime") {
-        Some(val) if val == &true => true,
-        _ => false,
-    } {
-        get_date_method = GetDateMethod::Filetime;
-    } else if match matches.get_one::<bool>("pxl") {
-        Some(val) if val == &true => true,
-        _ => false,
-    } {
-        get_date_method = GetDateMethod::Filename;
-    }
+    let tz_offset = matches.get_one::<i8>("offset").unwrap_or(&0);
 
     match matches.subcommand() {
         Some((command, sub_matches)) => {
@@ -63,26 +54,19 @@ fn handle_file(
             };
 
             // apply timezone offset
-
-            // use i8 hour proxy to be able to use negative numbers
-            let mut hour_i8 = datetime.hour as i8;
-            hour_i8 += tz_offset;
-
-            // adjust day if hour is negative
-            // offset should not exceed +-23 hours so this should only happen once, but use a loop just in case
+            let mut hour_i8 = datetime.hour as i8 + tz_offset; // use i8 proxy to be able to use negative numbers
             while hour_i8 < 0 {
+                // adjust day if hour is negative
+                // offset should not exceed +-23 hours so this should only happen once, but use a loop just in case
                 hour_i8 += 24;
                 datetime.day -= 1;
             }
-
-            // adjust day if hour is positive and more than 23
             while hour_i8 >= 24 {
+                // adjust day if hour is positive and more than 23
                 hour_i8 -= 24;
                 datetime.day += 1;
             }
-
-            // save the adjusted hour
-            datetime.hour = hour_i8 as u8;
+            datetime.hour = hour_i8 as u8; // save the adjusted hour
 
             move_file(command, path, datetime)?;
         }
@@ -133,16 +117,11 @@ fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {
 }
 
 fn get_filename_datetime(path: &str) -> Result<DateTime, io::Error> {
-    let filename = Path::new(path).file_name().unwrap().to_str().unwrap();
-    let datetime = name_date_parser_helper(filename).unwrap();
+    let name = Path::new(path).file_name().unwrap().to_str().unwrap();
 
-    return Ok(datetime);
-}
-
-fn name_date_parser_helper(name: &str) -> Result<DateTime, io::Error> {
     // name is in the format PXL_20240611_063230527.mp4
     // get the date from the name
-    let year = &name[4..8];
+    let year: &str = &name[4..8];
     let month = &name[8..10];
     let day = &name[10..12];
 
@@ -150,11 +129,8 @@ fn name_date_parser_helper(name: &str) -> Result<DateTime, io::Error> {
     let minute = &name[15..17];
     let second = &name[17..19];
 
-    let datetime = format!("{}:{}:{} {}:{}:{}", year, month, day, hour, minute, second);
-
-    //println!("{} -> {}", name, datetime);
-
-    let datetime = DateTime::from_ascii(datetime.as_bytes()).unwrap();
+    let datetime_string = format!("{}:{}:{} {}:{}:{}", year, month, day, hour, minute, second);
+    let datetime = DateTime::from_ascii(datetime_string.as_bytes()).unwrap();
 
     return Ok(datetime);
 }
