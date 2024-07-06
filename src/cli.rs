@@ -30,10 +30,17 @@ pub fn build_cli() -> Command {
         )
         .subcommand(
             Command::new("get-name")
-                .about("Get the name from the specified date(s) (format: \"2016:05:04 03:02:01\")")
+                .about("Get the name from the specified date(s) in the format: \"2016:05:04 03:02:01\"")
                 .arg_required_else_help(true)
                 .arg(arg!(<PATH> ... "Files to rename and move").value_parser(clap::value_parser!(String))),
         ).arg(
-            clap::arg!(-f --"filetime" "Use last modification time of file instead of exif metadata")
-                .value_parser(clap::value_parser!(bool)),)
+            clap::arg!(-f --"filetime" "Use last modification time of file instead of exif metadata (can't be combined with -p)")
+                .value_parser(clap::value_parser!(bool)),
+        ).arg(
+            clap::arg!(-p --"pxl" "Use the filename (in the format PXL_20200820_141005222) instead of exif metadata (can't be combined with -f)")
+                .value_parser(clap::value_parser!(bool)),
+        ).arg(
+            clap::arg!(-o --"offset" <HOURS> "Offset in hours to add to the date (use this to set the timezone for videos)")
+                .value_parser(clap::value_parser!(i8).range(-23..23)),
+        )
 }
