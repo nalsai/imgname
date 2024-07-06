@@ -16,6 +16,11 @@ enum GetDateMethod {
 fn main() {
     let matches = cli::build_cli().get_matches();
 
+    let tz_offset = match matches.get_one::<i8>("offset") {
+        Some(val) => val,
+        _ => &0,
+    };
+
     let mut get_date_method = GetDateMethod::Exif;
 
     if match matches.get_one::<bool>("filetime") {
@@ -33,7 +38,7 @@ fn main() {
     match matches.subcommand() {
         Some((command, sub_matches)) => {
             for path in sub_matches.get_many::<String>("PATH").into_iter().flatten() {
-                match handle_file(command, path, &get_date_method) {
+                match handle_file(command, path, &get_date_method, tz_offset) {
                     Ok(_) => (),
                     Err(e) => println!("{} {:?}", path, e),
                 }
@@ -47,14 +52,37 @@ fn handle_file(
     command: &str,
     path: &str,
     get_date_method: &GetDateMethod,
+    tz_offset: &i8,
 ) -> Result<(), exif::Error> {
     match command {
         "rename" | "move" | "rename-move" => {
-            let datetime = match get_date_method {
+            let mut datetime = match get_date_method {
                 GetDateMethod::Exif => get_datetime(path)?,
                 GetDateMethod::Filetime => get_filedatetime(path)?,
                 GetDateMethod::Filename => get_filename_datetime(path)?,
             };
+
+            // apply timezone offset
+
+            // use i8 hour proxy to be able to use negative numbers
+            let mut hour_i8 = datetime.hour as i8;
+            hour_i8 += tz_offset;
+
+            // adjust day if hour is negative
+            // offset should not exceed +-23 hours so this should only happen once, but use a loop just in case
+            while hour_i8 < 0 {
+                hour_i8 += 24;
+                datetime.day -= 1;
+            }
+
+            // adjust day if hour is positive and more than 23
+            while hour_i8 >= 24 {
+                hour_i8 -= 24;
+                datetime.day += 1;
+            }
+
+            // save the adjusted hour
+            datetime.hour = hour_i8 as u8;
 
             move_file(command, path, datetime)?;
         }
@@ -104,7 +132,7 @@ fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {
     return Ok(DateTime::from_ascii(timestamp_str.as_bytes())?);
 }
 
-fn get_filename_datetime(path: &str) -> Result<DateTime, exif::Error> {
+fn get_filename_datetime(path: &str) -> Result<DateTime, io::Error> {
     let filename = Path::new(path).file_name().unwrap().to_str().unwrap();
     let datetime = name_date_parser_helper(filename).unwrap();
 
@@ -126,16 +154,7 @@ fn name_date_parser_helper(name: &str) -> Result<DateTime, io::Error> {
 
     //println!("{} -> {}", name, datetime);
 
-    let mut datetime = DateTime::from_ascii(datetime.as_bytes()).unwrap();
-
-    // change the date from utc to local time
-    let tz_offset = 9; // TODO: allow user to set timezone
-
-    datetime.hour += tz_offset;
-    if datetime.hour >= 24 {
-        datetime.hour -= 24;
-        datetime.day += 1;
-    }
+    let datetime = DateTime::from_ascii(datetime.as_bytes()).unwrap();
 
     return Ok(datetime);
 }
