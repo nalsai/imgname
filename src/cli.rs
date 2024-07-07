@@ -41,6 +41,7 @@ pub fn build_cli() -> Command {
                 .value_parser(clap::value_parser!(bool)),
         ).arg(
             clap::arg!(-o --"offset" <HOURS> "Offset in hours to add to the date (use this to set the timezone for videos)")
+                .allow_hyphen_values(true)
                 .value_parser(clap::value_parser!(i8).range(-23..23)),
         )
 }
