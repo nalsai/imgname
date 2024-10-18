@@ -17,6 +17,12 @@ pub fn build_cli() -> Command {
                 .arg(arg!(<PATH> ... "Files to moves").value_parser(clap::value_parser!(String))),
         )
         .subcommand(
+            Command::new("move-year-month")
+                .about("Move the specified file(s) into the subfolder YYYY-MM")
+                .arg_required_else_help(true)
+                .arg(arg!(<PATH> ... "Files to moves").value_parser(clap::value_parser!(String))),
+        )   
+        .subcommand(
             Command::new("rename-move")
                 .about("Rename and moves the specified file(s)")
                 .arg_required_else_help(true)

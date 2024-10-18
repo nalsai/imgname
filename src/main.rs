@@ -46,7 +46,7 @@ fn handle_file(
     tz_offset: &i8,
 ) -> Result<(), exif::Error> {
     match command {
-        "rename" | "move" | "rename-move" => {
+        "rename" | "move" | "move-year-month" | "rename-move" => {
             let mut datetime = match get_date_method {
                 GetDateMethod::Exif => get_datetime(path)?,
                 GetDateMethod::Filetime => get_filedatetime(path)?,
@@ -146,7 +146,10 @@ fn move_file(method: &str, src_path_str: &str, mut datetime: DateTime) -> Result
 
     let dest_subdir = if method == "move" || method == "rename-move" {
         date_to_directory(&datetime)
-    } else {
+    } else if method == "move-year-month" {
+        date_to_directory2(&datetime)
+    } 
+    else {
         String::default()
     };
     let dest_name = if method == "rename" || method == "rename-move" {
@@ -266,6 +269,13 @@ fn date_to_directory(datetime: &DateTime) -> String {
     return format!(
         "{:04}-{:02}-{:02}",
         datetime.year, datetime.month, datetime.day
+    );
+}
+
+fn date_to_directory2(datetime: &DateTime) -> String {
+    return format!(
+        "{:04}-{:02}",
+        datetime.year, datetime.month
     );
 }
 
