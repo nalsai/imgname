@@ -9,6 +9,7 @@ mod cli;
 
 enum GetDateMethod {
     Exif,
+    Exiftool,
     Filetime,
     Filename,
 }
@@ -20,6 +21,8 @@ fn main() {
         GetDateMethod::Filetime
     } else if *matches.get_one::<bool>("pxl").unwrap_or(&false) {
         GetDateMethod::Filename
+    } else if *matches.get_one::<bool>("exiftool").unwrap_or(&false) {
+        GetDateMethod::Exiftool
     } else {
         GetDateMethod::Exif
     };
@@ -29,7 +32,7 @@ fn main() {
     match matches.subcommand() {
         Some((command, sub_matches)) => {
             for path in sub_matches.get_many::<String>("PATH").into_iter().flatten() {
-                match handle_file(command, path, &get_date_method, tz_offset) {
+                match handle_file(command, path, &get_date_method, &tz_offset) {
                     Ok(_) => (),
                     Err(e) => println!("{} {:?}", path, e),
                 }
@@ -49,6 +52,7 @@ fn handle_file(
         "rename" | "move" | "rename-move" => {
             let mut datetime = match get_date_method {
                 GetDateMethod::Exif => get_datetime(path)?,
+                GetDateMethod::Exiftool => get_exifdatetime(path)?,
                 GetDateMethod::Filetime => get_filedatetime(path)?,
                 GetDateMethod::Filename => get_filename_datetime(path)?,
             };
@@ -102,6 +106,19 @@ fn get_datetime(path: &str) -> Result<DateTime, exif::Error> {
         _ => return Err(exif::Error::BlankValue("DateTime is not readable")),
     }
     return Err(exif::Error::BlankValue("DateTime is not readable"));
+}
+
+fn get_exifdatetime(path: &str) -> Result<DateTime, exif::Error> {
+    // exiftool -s3 -createdate <path>
+    let output = std::process::Command::new("exiftool")
+        .arg("-s3")
+        .arg("-createdate")
+        .arg(path)
+        .output()?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let dt = DateTime::from_ascii(stdout.as_bytes())?;
+    return Ok(dt);
 }
 
 fn get_filedatetime(path: &str) -> Result<DateTime, exif::Error> {

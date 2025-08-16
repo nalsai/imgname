@@ -40,6 +40,9 @@ pub fn build_cli() -> Command {
             clap::arg!(-p --"pxl" "Use the filename (in the format PXL_20200820_141005222) instead of exif metadata (can't be combined with -f)")
                 .value_parser(clap::value_parser!(bool)),
         ).arg(
+            clap::arg!(-e --"exiftool" "Use exiftool CreateDate metadata")
+                .value_parser(clap::value_parser!(bool)),
+        ).arg(
             clap::arg!(-o --"offset" <HOURS> "Offset in hours to add to the date (use this to set the timezone for videos)")
                 .allow_hyphen_values(true)
                 .value_parser(clap::value_parser!(i8).range(-23..23)),
