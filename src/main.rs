@@ -194,15 +194,23 @@ fn move_file(method: &str, src_path_str: &str, mut datetime: DateTime) -> Result
         }
     }
 
-    // find all files with src_name_stem in src_dir
+    const COMPANION_SUFFIXES: &[&str] = &["-edit", "-edited"];
+
+    // find companion files: same stem (different extension) or known suffix
+    let src_stem_str = src_name_stem.to_str().unwrap().to_string();
     let iter = fs::read_dir(src_dir)?
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().unwrap().is_file())
-        .filter(|e| {
-            e.file_name()
-                .to_str()
-                .unwrap()
-                .starts_with(src_name_stem.to_str().unwrap())
+        .filter(move |e| {
+            let name = e.file_name();
+            let stem = Path::new(name.as_os_str())
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("");
+            stem == src_stem_str
+                || COMPANION_SUFFIXES
+                    .iter()
+                    .any(|&sfx| stem == format!("{}{}", src_stem_str, sfx))
         });
 
     fs::create_dir(&dest_dir).unwrap_or_default();
@@ -216,23 +224,31 @@ fn move_file(method: &str, src_path_str: &str, mut datetime: DateTime) -> Result
             .to_str()
             .unwrap()
             .to_ascii_lowercase(); // TODO: jpeg -> jpg
-        let dest_path = dest_dir.join(&dest_name_unique).with_extension(&dest_ext);
+        let entry_path = entry.path();
+        let entry_stem = entry_path.file_stem().unwrap().to_str().unwrap();
+        let companion_suffix = COMPANION_SUFFIXES
+            .iter()
+            .find(|&&sfx| entry_stem.ends_with(sfx))
+            .copied()
+            .unwrap_or("");
+        let dest_stem = format!("{}{}", &dest_name_unique, companion_suffix);
+        let dest_path = dest_dir.join(&dest_stem).with_extension(&dest_ext);
 
         println!(
             "{} -> {}",
-            entry.path().to_str().unwrap_or_default(),
+            entry_path.to_str().unwrap_or_default(),
             dest_path.to_str().unwrap_or_default()
         );
 
-        // make absolutely sure no file will be overwritten - this should never happen
-        if dest_path.exists() && !is_same_file(entry.path(), &dest_path).unwrap() {
+        // make absolutely sure no file will be overwritten
+        if dest_path.exists() && !is_same_file(&entry_path, &dest_path).unwrap() {
             panic!(
                 "Error: trying to move {} to {} but a file already exists at the target",
-                entry.path().to_str().unwrap_or_default(),
+                entry_path.to_str().unwrap_or_default(),
                 dest_path.to_str().unwrap_or_default()
             );
         }
-        fs::rename(entry.path(), dest_path)?;
+        fs::rename(&entry_path, dest_path)?;
     }
 
     Ok(())
@@ -242,12 +258,18 @@ fn another_file_with_stem_exists(path: &Path, file_stem: &str, src_path: &Path) 
     if !path.exists() {
         return false;
     }
-    // find all files with the same name (stem) in the directory
+    // find all files with the same stem in the directory
     let iter = fs::read_dir(path)
         .expect("Failed to read directory")
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().expect("Failed to get file type").is_file())
-        .filter(|e| e.file_name().to_str().unwrap().starts_with(file_stem));
+        .filter(|e| {
+            let name = e.file_name();
+            Path::new(name.as_os_str())
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("") == file_stem
+        });
 
     // compare the file with the same name and extension
     for entry in iter {
