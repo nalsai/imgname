@@ -72,6 +72,11 @@ fn handle_file(
             }
             datetime.hour = hour_i8 as u8; // save the adjusted hour
 
+            if datetime.year < 2000 || datetime.year > 2025 {
+                println!("{}: year {} is out of range, skipping", path, datetime.year);
+                return Ok(());
+            }
+
             move_file(command, path, datetime)?;
         }
         "get-date" => {

@@ -7,7 +7,7 @@ If the day of the month is less than or equal to 9, it directly uses the number,
 The time value is calculated using `hour * 3600 + minute * 60 + second`.
 
 This results in a name like AA100000 for 2000-01-01 00:00:00 and ZLV86399 for 2025-12-31 23:59:59.
-These values are the minimum and maximum date currently supported. Other dates will have non alphanumeric characters in their name.
+These values are the minimum and maximum date currently supported.
 
 It also recognizes multiple files with the same name but a different extension, and will move/rename them together. This is useful when you have a JPEG file and a RAW file with the same name.
 
